@@ -100,7 +100,7 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
                 quoteRec.setCurrentSublistValue({
                     sublistId: 'item',
                     fieldId: 'location',
-                    value: locationId // Number(context.location),
+                    value: locationId, // Number(context.location),
                     forceSyncSourcing: true
                 });
 
