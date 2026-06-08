@@ -197,7 +197,7 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
             filters: [
                 ['mainline', 'is', 'T'],
                 'AND',
-                ['otherrefnum', 'is', String(otherRefNum)]
+                ['otherrefnum', 'equalto', String(otherRefNum)]
             ],
             columns: [
                 search.createColumn({ name: 'internalid' }),
