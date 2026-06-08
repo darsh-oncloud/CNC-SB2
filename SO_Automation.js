@@ -31,7 +31,15 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
             // if (!context.location) {
             //     return sendError('MISSING_LOCATION', 'Location is missing.');
             // }
-            var locationId = context.location ? Number(context.location) : 7;
+            var locationId = 7;
+
+            if (context.location !== null && context.location !== undefined && String(context.location).trim() !== '') {
+               locationId = Number(String(context.location).trim());
+
+            if (!locationId || isNaN(locationId)) {
+               return sendError('INVALID_LOCATION', 'Invalid location passed: ' + context.location);
+             }
+            }
 
             var quoteRec = record.create({
                 type: record.Type.ESTIMATE,
