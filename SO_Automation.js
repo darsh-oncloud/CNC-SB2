@@ -8,22 +8,28 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
         try {
             log.debug('Incoming Payload', JSON.stringify(context));
 
-            var userEmail = context.user;
-
-            if (!userEmail) {
-                return errorResponse('MISSING_EMAIL', 'User email is missing in payload.');
+            if (!context.user) {
+                return sendError('MISSING_EMAIL', 'User email is missing.');
             }
 
-            var customerId = getCustomerByEmail(userEmail);
+            var customerId = getCustomerByEmail(context.user);
 
             if (!customerId) {
-                return errorResponse('CUSTOMER_NOT_FOUND', 'No customer found with email: ' + userEmail);
+                return sendError('CUSTOMER_NOT_FOUND', 'Customer not found for email: ' + context.user);
             }
 
             var itemList = context.item_list || [];
 
             if (!itemList || itemList.length === 0) {
-                return errorResponse('NO_ITEMS', 'No item_list found in payload.');
+                return sendError('NO_ITEMS', 'No item_list found in payload.');
+            }
+
+            if (!context.otherrefnum) {
+                return sendError('MISSING_PO', 'PO # / otherrefnum is missing.');
+            }
+
+            if (!context.location) {
+                return sendError('MISSING_LOCATION', 'Location is missing.');
             }
 
             var quoteRec = record.create({
@@ -31,14 +37,21 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
                 isDynamic: true
             });
 
-            // Customer
             quoteRec.setValue({
                 fieldId: 'entity',
-                value: Number(customerId),
-                forceSyncSourcing: true
+                value: Number(customerId)
             });
 
-            // Header fields from payload
+            quoteRec.setValue({
+                fieldId: 'otherrefnum',
+                value: String(context.otherrefnum)
+            });
+
+            quoteRec.setValue({
+                fieldId: 'location',
+                value: Number(context.location)
+            });
+
             if (context.project_name) {
                 quoteRec.setValue({
                     fieldId: 'memo',
@@ -53,31 +66,17 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
                 });
             }
 
-            // Optional dynamic body fields
-            // Example:
-            // "body_fields": {
-            //    "custbody_field_id": "value"
-            // }
-            if (context.body_fields) {
-                setBodyFields(quoteRec, context.body_fields);
-            }
-
-            // Item lines
             for (var i = 0; i < itemList.length; i++) {
                 var line = itemList[i];
 
                 var itemId = line.ItemNumber;
 
-                // If ItemNumber is blank/null, search item by SKU
                 if (!itemId && line.sku) {
                     itemId = getItemBySku(line.sku);
                 }
 
                 if (!itemId) {
-                    return errorResponse(
-                        'ITEM_NOT_FOUND',
-                        'Item not found for line ' + (i + 1) + '. SKU: ' + line.sku
-                    );
+                    return sendError('ITEM_NOT_FOUND', 'Item not found. SKU: ' + line.sku);
                 }
 
                 quoteRec.selectNewLine({
@@ -97,6 +96,13 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
                     value: Number(line.quantity) || 1
                 });
 
+                quoteRec.setCurrentSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'location',
+                    value: Number(context.location),
+                    forceSyncSourcing: true
+                });
+
                 if (line.price || line.price === 0) {
                     quoteRec.setCurrentSublistValue({
                         sublistId: 'item',
@@ -112,26 +118,21 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
                     });
                 }
 
-                // Optional dynamic line fields
-                // Example:
-                // "line_fields": {
-                //    "custcol_field_id": "value"
-                // }
-                if (line.line_fields) {
-                    setLineFields(quoteRec, line.line_fields);
-                }
-
                 quoteRec.commitLine({
                     sublistId: 'item'
                 });
             }
 
+            log.debug('Before Save Values', {
+                entity: quoteRec.getValue({ fieldId: 'entity' }),
+                otherrefnum: quoteRec.getValue({ fieldId: 'otherrefnum' }),
+                location: quoteRec.getValue({ fieldId: 'location' })
+            });
+
             var quoteId = quoteRec.save({
                 enableSourcing: true,
                 ignoreMandatoryFields: false
             });
-
-            log.audit('Quote Created', quoteId);
 
             return {
                 success: true,
@@ -201,34 +202,7 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
         return null;
     }
 
-    function setBodyFields(recObj, fieldsObj) {
-        for (var fieldId in fieldsObj) {
-            if (fieldsObj.hasOwnProperty(fieldId)) {
-                if (fieldsObj[fieldId] !== null && fieldsObj[fieldId] !== '') {
-                    recObj.setValue({
-                        fieldId: fieldId,
-                        value: fieldsObj[fieldId]
-                    });
-                }
-            }
-        }
-    }
-
-    function setLineFields(recObj, fieldsObj) {
-        for (var fieldId in fieldsObj) {
-            if (fieldsObj.hasOwnProperty(fieldId)) {
-                if (fieldsObj[fieldId] !== null && fieldsObj[fieldId] !== '') {
-                    recObj.setCurrentSublistValue({
-                        sublistId: 'item',
-                        fieldId: fieldId,
-                        value: fieldsObj[fieldId]
-                    });
-                }
-            }
-        }
-    }
-
-    function errorResponse(name, message) {
+    function sendError(name, message) {
         log.error(name, message);
 
         return {
