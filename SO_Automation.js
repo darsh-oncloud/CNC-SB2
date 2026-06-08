@@ -28,9 +28,10 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
                 return sendError('MISSING_PO', 'PO # / otherrefnum is missing.');
             }
 
-            if (!context.location) {
-                return sendError('MISSING_LOCATION', 'Location is missing.');
-            }
+            // if (!context.location) {
+            //     return sendError('MISSING_LOCATION', 'Location is missing.');
+            // }
+            var locationId = context.location ? Number(context.location) : 7;
 
             var quoteRec = record.create({
                 type: record.Type.ESTIMATE,
@@ -49,7 +50,7 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
 
             quoteRec.setValue({
                 fieldId: 'location',
-                value: Number(context.location)
+                value: locationId  //Number(context.location)
             });
 
             if (context.project_name) {
@@ -99,7 +100,7 @@ define(['N/record', 'N/log', 'N/search'], function (record, log, search) {
                 quoteRec.setCurrentSublistValue({
                     sublistId: 'item',
                     fieldId: 'location',
-                    value: Number(context.location),
+                    value: locationId // Number(context.location),
                     forceSyncSourcing: true
                 });
 
